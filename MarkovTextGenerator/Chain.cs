@@ -34,6 +34,14 @@ public class Chain
         // TODO: Break sentence up into word pairs
         // TODO: Add each word pair to the chain by calling AddPair
         // TODO: The last word of any sentence will be paired up with an empty string to show that it is the end of the sentence
+        string[] wordArray = sentence.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+
+        for (int i = 0; i < wordArray.Length - 1; i++)
+        {
+            AddPair(wordArray[i], wordArray[i + 1]);
+        }
+
+        AddPair(wordArray[wordArray.Length - 1], "");
     }
 
     // Adds a pair of words to the chain that will appear in order
