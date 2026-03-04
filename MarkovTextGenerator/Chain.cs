@@ -124,7 +124,7 @@ public class Chain
                     }
                 }
 
-                scores[i] = score * (int)choices[i].Probability;
+                scores[i] = (int)(score * choices[i].Probability);
             }
 
             return choices[Array.IndexOf(scores, scores.Max())].Value;

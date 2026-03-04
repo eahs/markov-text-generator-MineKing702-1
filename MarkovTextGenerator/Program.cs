@@ -8,9 +8,8 @@ public class Program
 
         Console.WriteLine("Welcome to Marky Markov's Random Text Generator!");
 
-        //LoadText("Sample.txt", chain);
-        // LoadText("Billboard.txt", chain);
-        LoadText("BeeMovie.txt", chain);
+        LoadText("Sample.txt", chain);
+        //LoadText("Billboard.txt", chain);
 
         // Now let's update all the probabilities with the new data
         chain.UpdateProbabilities();
@@ -20,7 +19,7 @@ public class Program
             Console.WriteLine();
             var startWord = chain.GetRandomStartingWord();
             var sentence = chain.GenerateSentence(startWord);
-            Console.WriteLine(sentence);
+            Console.WriteLine($"{i + 1}: {sentence}");
         }
     }
 
