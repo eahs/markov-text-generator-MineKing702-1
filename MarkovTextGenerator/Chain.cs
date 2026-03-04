@@ -60,6 +60,9 @@ public class Chain
     // Adds a pair of words to the chain that will appear in order
     public void AddPair(string word, Word word2)
     {
+        if (word.Trim() == "")
+            return;
+
         if (!Words.ContainsKey(word))
         {
             _sums.Add(word, 1);
@@ -102,10 +105,10 @@ public class Chain
         {
             List<Word> choices = value;
             int[] scores = new int[choices.Count];
-            
+
             for (int i = 0; i < choices.Count; i++)
             {
-                if (choices[i].Value == word)
+                if (choices[i].Value.ToLower().Trim() == word.ToLower().Trim() || choices[i].Value.Trim() == "")
                 {
                     continue;
                 }
@@ -146,6 +149,7 @@ public class Chain
         {
             nextWord = GetNextWord(lastWord);
             CurrentSentence += " " + nextWord;
+            lastWord = nextWord;
         }
         while (nextWord != "");
 
