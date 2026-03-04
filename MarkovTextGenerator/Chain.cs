@@ -5,6 +5,7 @@ public class Chain
     public Dictionary<string, List<Word>> Words { get; set; } = new();
     private readonly Dictionary<string, int> _sums = new();
     private readonly Random _rand = new(System.Environment.TickCount);
+    private string CurrentSentence = "";
 
     /// <summary>
     /// Returns a random starting word from the stored list of words
@@ -38,27 +39,39 @@ public class Chain
 
         for (int i = 0; i < wordArray.Length - 1; i++)
         {
-            AddPair(wordArray[i], wordArray[i + 1]);
+            Word word2 = new Word(wordArray[i + 1]);
+            List<string> phrases = new();
+            for (int j = 0; j < i; j++)
+            {
+                string curPhrase = "";
+                for (int k = j; k < i; k++)
+                {
+                    curPhrase += wordArray[k] + " ";
+                }
+                phrases.Add(curPhrase);
+            }
+            word2.Phrases = phrases;
+            AddPair(wordArray[i], word2);
         }
 
-        AddPair(wordArray[wordArray.Length - 1], "");
+        AddPair(wordArray[wordArray.Length - 1], new Word(""));
     }
 
     // Adds a pair of words to the chain that will appear in order
-    public void AddPair(string word, string word2)
+    public void AddPair(string word, Word word2)
     {
         if (!Words.ContainsKey(word))
         {
             _sums.Add(word, 1);
             Words.Add(word, new List<Word>());
-            Words[word].Add(new Word(word2));
+            Words[word].Add(word2);
         }
         else
         {
             bool found = false;
             foreach (Word s in Words[word])
             {
-                if (s.ToString() == word2)
+                if (s.ToString() == word2.Value)
                 {
                     found = true;
                     s.Count++;
@@ -68,7 +81,7 @@ public class Chain
 
             if (!found)
             {
-                Words[word].Add(new Word(word2));
+                Words[word].Add(word2);
                 _sums[word]++;
             }
         }
@@ -88,9 +101,30 @@ public class Chain
         if (Words.TryGetValue(word, out List<Word>? value))
         {
             List<Word> choices = value;
-            double test = _rand.NextDouble();
+            int[] scores = new int[choices.Count];
+            
+            for (int i = 0; i < choices.Count; i++)
+            {
+                if (choices[i].Value == word)
+                {
+                    continue;
+                }
+                int score = 0;
+                score += 5 * choices[i].Count;
+                List<string> phrases = choices[i].Phrases;
+                for (int j = 0; j < phrases.Count; j++)
+                {
+                    if (CurrentSentence.Contains(phrases[j]))
+                    {
+                        score += 10 * phrases[j].Split(" ").Count();
+                        break;
+                    }
+                }
 
-            Console.WriteLine("I picked the number " + test);
+                scores[i] = score * (int)choices[i].Probability;
+            }
+
+            return choices[Array.IndexOf(scores, scores.Max())].Value;
         }
 
         return "idkbbq";
@@ -104,7 +138,18 @@ public class Chain
     /// <returns></returns>
     public string GenerateSentence(string startingWord)
     {
-        return "";
+        CurrentSentence = startingWord;
+
+        string lastWord = startingWord;
+        string nextWord = "";
+        do
+        {
+            nextWord = GetNextWord(lastWord);
+            CurrentSentence += " " + nextWord;
+        }
+        while (nextWord != "");
+
+        return CurrentSentence;
     }
 
     /// <summary>

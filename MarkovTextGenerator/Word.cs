@@ -31,4 +31,11 @@ public class Word
     /// </summary>
     /// <returns>The word.</returns>
     public override string ToString() => this.Value;
+
+    /// <summary>
+    /// every phrase before it in example sentences
+    /// ex: "The house was burning down" word = burning
+    /// phrases would have ["The houe was", "house was"]
+    /// </summary>
+    public List<string> Phrases { get; set; }
 }
