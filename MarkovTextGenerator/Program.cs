@@ -8,8 +8,8 @@ public class Program
 
         Console.WriteLine("Welcome to Marky Markov's Random Text Generator!");
 
-        //LoadText("Sample.txt", chain);
-        //LoadText("Billboard.txt", chain);
+        LoadText("Sample.txt", chain);
+        // LoadText("Billboard.txt", chain);
         LoadText("BeeMovie.txt", chain);
 
         // Now let's update all the probabilities with the new data
@@ -23,7 +23,7 @@ public class Program
             Console.WriteLine();
             var startWord = chain.GetRandomStartingWord();
             var sentence = chain.GenerateSentence(startWord);
-            Console.WriteLine($"{i + 1}: {sentence}");
+            Console.WriteLine($"{i + 1}: {CapitalizeFirstLetter(sentence)}");
         }
     }
 
@@ -41,6 +41,15 @@ public class Program
             chain.AddSentence(line);
             counter++;
         }
+    }
+
+    static string CapitalizeFirstLetter(string s)
+    {
+        if (string.IsNullOrEmpty(s))
+        {
+            return string.Empty;
+        }
+        return char.ToUpper(s[0]) + s.Substring(1);
     }
 }
 

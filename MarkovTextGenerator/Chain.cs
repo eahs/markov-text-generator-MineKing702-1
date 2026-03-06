@@ -2,228 +2,237 @@
 
 public class Chain
 {
-    public Dictionary<int, List<Word>> Words { get; set; } = new();
-    private readonly Dictionary<int, int> _sums = new();
+    // (token1, token2, token3) -> list of possible next words
+    public Dictionary<(int, int, int), List<Word>> Words { get; set; } = new();
 
-    private readonly Random _rand = new(System.Environment.TickCount);
+    private readonly Dictionary<(int, int, int), int> _sums = new();
 
-    private List<int> Starters = new();
+    private readonly Random _rand = new(Environment.TickCount);
+
+    // Token storage
+    private Dictionary<string, int> _tokenLookup = new();
+    private Dictionary<int, string> _reverseLookup = new();
+    private int _nextToken = 0;
+
+    private List<(int, int, int)> Starters = new();
 
     private string CurrentSentence = "";
 
-    private Tokenizer tokenizer = new();
+    // ================= TOKEN HELPERS =================
 
-    /// <summary>
-    /// Returns a random starting word
-    /// </summary>
-    public string GetRandomStartingWord()
+    private int GetToken(string word)
     {
-        int token = Starters[_rand.Next() % Starters.Count];
-        return tokenizer.GetWord(token);
+        word = word.Trim().ToLower();
+
+        if (_tokenLookup.TryGetValue(word, out int token))
+            return token;
+
+        token = _nextToken++;
+
+        _tokenLookup[word] = token;
+        _reverseLookup[token] = word;
+
+        return token;
     }
 
-    /// <summary>
-    /// Adds a sentence to the chain
-    /// </summary>
-    public void AddSentence(string? sentence)
+    private string GetWord(int token)
     {
-        string[] wordArray = sentence.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (_reverseLookup.TryGetValue(token, out string? value))
+            return value;
 
-        int startToken = tokenizer.GetToken(wordArray[0]);
-        Starters.Add(startToken);
+        return "";
+    }
 
-        for (int i = 0; i < wordArray.Length - 1; i++)
+    // ================= TRAINING =================
+
+    public void AddSentence(string sentence)
+    {
+        if (string.IsNullOrWhiteSpace(sentence))
+            return;
+
+        string[] words = sentence
+            .ToLower()
+            .Split(' ', StringSplitOptions.RemoveEmptyEntries);
+
+        if (words.Length < 4)
+            return;
+
+        int[] tokens = words.Select(GetToken).ToArray();
+
+        // Store starter triple
+        Starters.Add((tokens[0], tokens[1], tokens[2]));
+
+        // Build 3-gram chain
+        for (int i = 0; i < tokens.Length - 3; i++)
         {
-            int token1 = tokenizer.GetToken(wordArray[i]);
-            int token2 = tokenizer.GetToken(wordArray[i + 1]);
+            var key = (tokens[i], tokens[i + 1], tokens[i + 2]);
 
-            Word word2 = new Word(token2);
+            Word nextWord = new Word(tokens[i + 3]);
 
             List<string> phrases = new();
 
             for (int j = 0; j < i; j++)
             {
-                string curPhrase = "";
+                string phrase = "";
 
                 for (int k = j; k < i; k++)
                 {
-                    curPhrase += wordArray[k] + " ";
+                    phrase += words[k] + " ";
                 }
 
-                phrases.Add(curPhrase);
+                phrases.Add(phrase.Trim());
             }
 
-            word2.Phrases = phrases;
+            nextWord.Phrases = phrases;
 
-            AddPair(token1, word2);
+            AddPair(key, nextWord);
         }
 
-        int lastToken = tokenizer.GetToken(wordArray[wordArray.Length - 1]);
-        int endToken = tokenizer.GetToken("");
-
-        AddPair(lastToken, new Word(endToken));
+        var endKey = (tokens[^3], tokens[^2], tokens[^1]);
+        AddPair(endKey, new Word(GetToken("")));
     }
 
-    /// <summary>
-    /// Adds a pair of tokens to the chain
-    /// </summary>
-    public void AddPair(int word, Word word2)
+    private void AddPair((int, int, int) key, Word word)
     {
-        if (!Words.ContainsKey(word))
+        if (!Words.ContainsKey(key))
         {
-            _sums.Add(word, 1);
-
-            Words[word] = new List<Word>();
-            Words[word].Add(word2);
+            Words[key] = new List<Word>();
+            _sums[key] = 1;
+            Words[key].Add(word);
+            return;
         }
-        else
+
+        bool found = false;
+
+        foreach (var existing in Words[key])
         {
-            bool found = false;
-
-            foreach (Word existing in Words[word])
+            if (existing.Token == word.Token)
             {
-                if (existing.Token == word2.Token)
+                existing.Count++;
+                _sums[key]++;
+
+                // Merge phrases
+                foreach (var p in word.Phrases)
                 {
-                    found = true;
-
-                    existing.Count++;
-                    _sums[word]++;
-
-                    // Merge phrase lists instead of losing them
-                    foreach (var phrase in word2.Phrases)
-                    {
-                        if (!existing.Phrases.Contains(phrase))
-                        {
-                            existing.Phrases.Add(phrase);
-                        }
-                    }
-
-                    break;
+                    if (!existing.Phrases.Contains(p))
+                        existing.Phrases.Add(p);
                 }
-            }
 
-            if (!found)
-            {
-                Words[word].Add(word2);
-                _sums[word]++;
+                found = true;
+                break;
             }
+        }
+
+        if (!found)
+        {
+            Words[key].Add(word);
+            _sums[key]++;
         }
     }
 
-    /// <summary>
-    /// Returns next token based on probabilities
-    /// </summary>
-    public int GetNextWord(int word)
+    // ================= GENERATION =================
+
+    public string GetRandomStartingWord()
     {
-        if (Words.TryGetValue(word, out List<Word>? value))
-        {
-            List<Word> choices = value;
+        var starter = Starters[_rand.Next(Starters.Count)];
 
-            double[] scores = new double[choices.Count];
-
-            for (int i = 0; i < choices.Count; i++)
-            {
-                string nextWord = tokenizer.GetWord(choices[i].Token);
-                string currentWord = tokenizer.GetWord(word);
-
-                if (nextWord.ToLower().Trim() == currentWord.ToLower().Trim() || nextWord.Trim() == "")
-                {
-                    continue;
-                }
-
-                int score = 0;
-
-                score += 5 * choices[i].Count;
-
-                List<string> phrases = choices[i].Phrases;
-
-                for (int j = 0; j < phrases.Count; j++)
-                {
-                    if (CurrentSentence.Contains(phrases[j]))
-                    {
-                        score += 10 * phrases[j].Split(" ").Count();
-                        break;
-                    }
-                }
-
-                scores[i] = score * choices[i].Probability;
-            }
-
-            double total = scores.Sum();
-
-            if (total == 0)
-                return choices[Random.Shared.Next(choices.Count)].Token;
-
-            double[] probabilities = new double[scores.Length];
-
-            for (int i = 0; i < scores.Length; i++)
-            {
-                probabilities[i] = scores[i] / total;
-            }
-
-            double rand = Random.Shared.NextDouble();
-            double cumulative = 0;
-
-            for (int i = 0; i < probabilities.Length; i++)
-            {
-                cumulative += probabilities[i];
-
-                if (rand <= cumulative)
-                {
-                    return choices[i].Token;
-                }
-            }
-
-            return choices.Last().Token;
-        }
-
-        return tokenizer.GetToken("idkbbq");
+        return $"{GetWord(starter.Item1)} {GetWord(starter.Item2)} {GetWord(starter.Item3)}";
     }
 
-    /// <summary>
-    /// Generates a sentence starting from a word
-    /// </summary>
-    public string GenerateSentence(string startingWord)
+    public string GenerateSentence(string startingWords)
     {
-        int startToken = tokenizer.GetToken(startingWord);
+        string[] parts = startingWords
+            .ToLower()
+            .Split(' ', StringSplitOptions.RemoveEmptyEntries);
 
-        CurrentSentence = startingWord;
+        if (parts.Length < 3)
+            return startingWords;
 
-        int lastWord = startToken;
-        int nextWord;
+        int t1 = GetToken(parts[0]);
+        int t2 = GetToken(parts[1]);
+        int t3 = GetToken(parts[2]);
 
-        int count = 0;
-        int maxLength = 20;
+        CurrentSentence = $"{parts[0]} {parts[1]} {parts[2]}";
 
-        do
+        int maxLength = 30;
+
+        while (maxLength-- > 0)
         {
-            nextWord = GetNextWord(lastWord);
+            string next = GetNextWord(t1, t2, t3);
 
-            string nextWordStr = tokenizer.GetWord(nextWord);
-
-            CurrentSentence += " " + nextWordStr;
-
-            lastWord = nextWord;
-
-            count++;
-            if (count >= maxLength)
+            if (string.IsNullOrEmpty(next))
                 break;
 
-        } while (tokenizer.GetWord(nextWord) != "");
+            CurrentSentence += " " + next;
+
+            int nextToken = GetToken(next);
+
+            t1 = t2;
+            t2 = t3;
+            t3 = nextToken;
+        }
 
         return CurrentSentence;
     }
 
-    /// <summary>
-    /// Updates probabilities for each word chain
-    /// </summary>
+    private string GetNextWord(int t1, int t2, int t3)
+    {
+        var key = (t1, t2, t3);
+
+        if (!Words.TryGetValue(key, out List<Word>? choices))
+            return "";
+
+        double[] scores = new double[choices.Count];
+
+        for (int i = 0; i < choices.Count; i++)
+        {
+            string wordText = GetWord(choices[i].Token);
+
+            if (wordText == "")
+                continue;
+
+            double score = 5 * choices[i].Count;
+
+            foreach (var phrase in choices[i].Phrases)
+            {
+                if (CurrentSentence.Contains(phrase))
+                {
+                    score += 10 * phrase.Split(' ').Length;
+                    break;
+                }
+            }
+
+            scores[i] = score * choices[i].Probability;
+        }
+
+        double total = scores.Sum();
+
+        if (total == 0)
+            return GetWord(choices[_rand.Next(choices.Count)].Token);
+
+        double rand = _rand.NextDouble();
+        double cumulative = 0;
+
+        for (int i = 0; i < scores.Length; i++)
+        {
+            cumulative += scores[i] / total;
+
+            if (rand <= cumulative)
+                return GetWord(choices[i].Token);
+        }
+
+        return GetWord(choices.Last().Token);
+    }
+
+    // ================= PROBABILITIES =================
+
     public void UpdateProbabilities()
     {
-        foreach (int word in Words.Keys)
+        foreach (var key in Words.Keys)
         {
-            foreach (Word s in Words[word])
+            foreach (var word in Words[key])
             {
-                s.Probability = (double)s.Count / _sums[word];
+                word.Probability = (double)word.Count / _sums[key];
             }
         }
     }
