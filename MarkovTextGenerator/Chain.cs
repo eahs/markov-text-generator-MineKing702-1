@@ -72,20 +72,33 @@ public class Chain
         if (!Words.ContainsKey(word))
         {
             _sums.Add(word, 1);
-            Words.Add(word, new List<Word>());
+
+            Words[word] = new List<Word>();
             Words[word].Add(word2);
         }
         else
         {
             bool found = false;
 
-            foreach (Word s in Words[word])
+            foreach (Word existing in Words[word])
             {
-                if (s.Token == word2.Token)
+                if (existing.Token == word2.Token)
                 {
                     found = true;
-                    s.Count++;
+
+                    existing.Count++;
                     _sums[word]++;
+
+                    // Merge phrase lists instead of losing them
+                    foreach (var phrase in word2.Phrases)
+                    {
+                        if (!existing.Phrases.Contains(phrase))
+                        {
+                            existing.Phrases.Add(phrase);
+                        }
+                    }
+
+                    break;
                 }
             }
 

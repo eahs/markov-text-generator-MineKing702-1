@@ -8,12 +8,15 @@ public class Program
 
         Console.WriteLine("Welcome to Marky Markov's Random Text Generator!");
 
-        LoadText("Sample.txt", chain);
-        LoadText("Billboard.txt", chain);
+        //LoadText("Sample.txt", chain);
+        //LoadText("Billboard.txt", chain);
         LoadText("BeeMovie.txt", chain);
 
         // Now let's update all the probabilities with the new data
         chain.UpdateProbabilities();
+
+        Console.WriteLine();
+        Console.WriteLine("Completed Training");
 
         for (int i = 0; i < 10; i++)
         {
@@ -38,9 +41,6 @@ public class Program
             chain.AddSentence(line);
             counter++;
         }
-
-        Console.WriteLine();
-        Console.WriteLine("Completed Training");
     }
 }
 
