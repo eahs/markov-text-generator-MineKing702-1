@@ -5,6 +5,7 @@ public class Chain
     public Dictionary<string, List<Word>> Words { get; set; } = new();
     private readonly Dictionary<string, int> _sums = new();
     private readonly Random _rand = new(System.Environment.TickCount);
+    private List<string> Starters = new List<string>();
     private string CurrentSentence = "";
 
     /// <summary>
@@ -15,7 +16,7 @@ public class Chain
     /// <returns></returns>
     public string GetRandomStartingWord()
     {
-        return Words.Keys.ElementAt(_rand.Next() % Words.Keys.Count);
+        return Starters[_rand.Next() % Starters.Count];
     }
 
     /// <summary>
@@ -36,6 +37,7 @@ public class Chain
         // TODO: Add each word pair to the chain by calling AddPair
         // TODO: The last word of any sentence will be paired up with an empty string to show that it is the end of the sentence
         string[] wordArray = sentence.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        Starters.Add(wordArray[0]);
 
         for (int i = 0; i < wordArray.Length - 1; i++)
         {
@@ -104,7 +106,7 @@ public class Chain
         if (Words.TryGetValue(word, out List<Word>? value))
         {
             List<Word> choices = value;
-            int[] scores = new int[choices.Count];
+            double[] scores = new double[choices.Count];
 
             for (int i = 0; i < choices.Count; i++)
             {
@@ -112,8 +114,10 @@ public class Chain
                 {
                     continue;
                 }
+
                 int score = 0;
                 score += 5 * choices[i].Count;
+
                 List<string> phrases = choices[i].Phrases;
                 for (int j = 0; j < phrases.Count; j++)
                 {
@@ -124,10 +128,34 @@ public class Chain
                     }
                 }
 
-                scores[i] = (int)(score * choices[i].Probability);
+                scores[i] = score * choices[i].Probability;
             }
 
-            return choices[Array.IndexOf(scores, scores.Max())].Value;
+            // Convert scores -> probabilities
+            double total = scores.Sum();
+            if (total == 0)
+                return choices[Random.Shared.Next(choices.Count)].Value;
+
+            double[] probabilities = new double[scores.Length];
+            for (int i = 0; i < scores.Length; i++)
+            {
+                probabilities[i] = scores[i] / total;
+            }
+
+            // Weighted random selection
+            double rand = Random.Shared.NextDouble();
+            double cumulative = 0;
+
+            for (int i = 0; i < probabilities.Length; i++)
+            {
+                cumulative += probabilities[i];
+                if (rand <= cumulative)
+                {
+                    return choices[i].Value;
+                }
+            }
+
+            return choices.Last().Value;
         }
 
         return "idkbbq";
