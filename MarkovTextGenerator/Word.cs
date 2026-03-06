@@ -1,41 +1,19 @@
 ﻿namespace MarkovTextGenerator;
 
-/// <summary>
-/// Represents a word and its occurrence count and probability.
-/// </summary>
 public class Word
 {
-    /// <summary>
-    /// The number of times the word appears following a given word.
-    /// </summary>
     public int Count { get; set; } = 1;
 
-    /// <summary>
-    /// The probability of the word appearing after a given word.
-    /// </summary>
     public double Probability { get; set; } = 0.0;
 
-    /// <summary>
-    /// Initializes a new instance of the <see cref="Word"/> class with the specified word.
-    /// </summary>
-    /// <param name="word">The word.</param>
-    public Word(string word)
+    public int Token { get; }
+
+    public Word(int token)
     {
-        this.Value = word;
+        Token = token;
     }
 
-    public string Value { get; }
+    public List<string> Phrases { get; set; } = new();
 
-    /// <summary>
-    /// Returns the word as a string.
-    /// </summary>
-    /// <returns>The word.</returns>
-    public override string ToString() => this.Value;
-
-    /// <summary>
-    /// every phrase before it in example sentences
-    /// ex: "The house was burning down" word = burning
-    /// phrases would have ["The houe was", "house was"]
-    /// </summary>
-    public List<string> Phrases { get; set; }
+    public override string ToString() => Token.ToString();
 }

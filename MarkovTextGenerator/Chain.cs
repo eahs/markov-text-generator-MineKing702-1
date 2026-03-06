@@ -2,69 +2,73 @@
 
 public class Chain
 {
-    public Dictionary<string, List<Word>> Words { get; set; } = new();
-    private readonly Dictionary<string, int> _sums = new();
+    public Dictionary<int, List<Word>> Words { get; set; } = new();
+    private readonly Dictionary<int, int> _sums = new();
+
     private readonly Random _rand = new(System.Environment.TickCount);
-    private List<string> Starters = new List<string>();
+
+    private List<int> Starters = new();
+
     private string CurrentSentence = "";
 
+    private Tokenizer tokenizer = new();
+
     /// <summary>
-    /// Returns a random starting word from the stored list of words
-    /// This may not be the best approach.. better may be to actually store
-    /// a separate list of actual sentence starting words and randomly choose from that
+    /// Returns a random starting word
     /// </summary>
-    /// <returns></returns>
     public string GetRandomStartingWord()
     {
-        return Starters[_rand.Next() % Starters.Count];
+        int token = Starters[_rand.Next() % Starters.Count];
+        return tokenizer.GetWord(token);
     }
 
     /// <summary>
     /// Adds a sentence to the chain
-    /// You can use the empty string to indicate the sentence will end
-    ///
-    /// For example, if sentence is "The house is on fire" you would do the following:
-    ///  AddPair("The", "house")
-    ///  AddPair("house", "is")
-    ///  AddPair("is", "on")
-    ///  AddPair("on", "fire")
-    ///  AddPair("fire", "")
     /// </summary>
-    /// <param name="sentence"></param>
     public void AddSentence(string? sentence)
     {
-        // TODO: Break sentence up into word pairs
-        // TODO: Add each word pair to the chain by calling AddPair
-        // TODO: The last word of any sentence will be paired up with an empty string to show that it is the end of the sentence
         string[] wordArray = sentence.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        Starters.Add(wordArray[0]);
+
+        int startToken = tokenizer.GetToken(wordArray[0]);
+        Starters.Add(startToken);
 
         for (int i = 0; i < wordArray.Length - 1; i++)
         {
-            Word word2 = new Word(wordArray[i + 1]);
+            int token1 = tokenizer.GetToken(wordArray[i]);
+            int token2 = tokenizer.GetToken(wordArray[i + 1]);
+
+            Word word2 = new Word(token2);
+
             List<string> phrases = new();
+
             for (int j = 0; j < i; j++)
             {
                 string curPhrase = "";
+
                 for (int k = j; k < i; k++)
                 {
                     curPhrase += wordArray[k] + " ";
                 }
+
                 phrases.Add(curPhrase);
             }
+
             word2.Phrases = phrases;
-            AddPair(wordArray[i], word2);
+
+            AddPair(token1, word2);
         }
 
-        AddPair(wordArray[wordArray.Length - 1], new Word(""));
+        int lastToken = tokenizer.GetToken(wordArray[wordArray.Length - 1]);
+        int endToken = tokenizer.GetToken("");
+
+        AddPair(lastToken, new Word(endToken));
     }
 
-    // Adds a pair of words to the chain that will appear in order
-    public void AddPair(string word, Word word2)
+    /// <summary>
+    /// Adds a pair of tokens to the chain
+    /// </summary>
+    public void AddPair(int word, Word word2)
     {
-        if (word.Trim() == "")
-            return;
-
         if (!Words.ContainsKey(word))
         {
             _sums.Add(word, 1);
@@ -74,9 +78,10 @@ public class Chain
         else
         {
             bool found = false;
+
             foreach (Word s in Words[word])
             {
-                if (s.ToString() == word2.Value)
+                if (s.Token == word2.Token)
                 {
                     found = true;
                     s.Count++;
@@ -93,32 +98,32 @@ public class Chain
     }
 
     /// <summary>
-    /// Given a word, randomly chooses the next word.  This should be done
-    /// by using the list of words in the words Dictionary.  The provided
-    /// code allows you to pick a word from the choices array.  Bear in mind
-    /// that each word is not equally likely to occur and has their own probability
-    /// of occurring.
+    /// Returns next token based on probabilities
     /// </summary>
-    /// <param name="word"></param>
-    /// <returns></returns>
-    public string GetNextWord(string word)
+    public int GetNextWord(int word)
     {
         if (Words.TryGetValue(word, out List<Word>? value))
         {
             List<Word> choices = value;
+
             double[] scores = new double[choices.Count];
 
             for (int i = 0; i < choices.Count; i++)
             {
-                if (choices[i].Value.ToLower().Trim() == word.ToLower().Trim() || choices[i].Value.Trim() == "")
+                string nextWord = tokenizer.GetWord(choices[i].Token);
+                string currentWord = tokenizer.GetWord(word);
+
+                if (nextWord.ToLower().Trim() == currentWord.ToLower().Trim() || nextWord.Trim() == "")
                 {
                     continue;
                 }
 
                 int score = 0;
+
                 score += 5 * choices[i].Count;
 
                 List<string> phrases = choices[i].Phrases;
+
                 for (int j = 0; j < phrases.Count; j++)
                 {
                     if (CurrentSentence.Contains(phrases[j]))
@@ -131,76 +136,78 @@ public class Chain
                 scores[i] = score * choices[i].Probability;
             }
 
-            // Convert scores -> probabilities
             double total = scores.Sum();
+
             if (total == 0)
-                return choices[Random.Shared.Next(choices.Count)].Value;
+                return choices[Random.Shared.Next(choices.Count)].Token;
 
             double[] probabilities = new double[scores.Length];
+
             for (int i = 0; i < scores.Length; i++)
             {
                 probabilities[i] = scores[i] / total;
             }
 
-            // Weighted random selection
             double rand = Random.Shared.NextDouble();
             double cumulative = 0;
 
             for (int i = 0; i < probabilities.Length; i++)
             {
                 cumulative += probabilities[i];
+
                 if (rand <= cumulative)
                 {
-                    return choices[i].Value;
+                    return choices[i].Token;
                 }
             }
 
-            return choices.Last().Value;
+            return choices.Last().Token;
         }
 
-        return "idkbbq";
+        return tokenizer.GetToken("idkbbq");
     }
 
     /// <summary>
-    /// Generates a full randomly generated sentence based that starts with
-    /// startingWord.
+    /// Generates a sentence starting from a word
     /// </summary>
-    /// <param name="startingWord"></param>
-    /// <returns></returns>
     public string GenerateSentence(string startingWord)
     {
+        int startToken = tokenizer.GetToken(startingWord);
+
         CurrentSentence = startingWord;
 
-        string lastWord = startingWord;
-        string nextWord = "";
+        int lastWord = startToken;
+        int nextWord;
+
+        int count = 0;
+        int maxLength = 20;
+
         do
         {
             nextWord = GetNextWord(lastWord);
-            CurrentSentence += " " + nextWord;
+
+            string nextWordStr = tokenizer.GetWord(nextWord);
+
+            CurrentSentence += " " + nextWordStr;
+
             lastWord = nextWord;
-        }
-        while (nextWord != "");
+
+            count++;
+            if (count >= maxLength)
+                break;
+
+        } while (tokenizer.GetWord(nextWord) != "");
 
         return CurrentSentence;
     }
 
     /// <summary>
-    /// Updates the probability of choosing a second word at random
-    /// for a chain of words attached to a first word.
-    /// Example: If the starting word is "The" and the only word that
-    /// you ever see following it is the word "cat", then "cat" would
-    /// have a probability of following "The" of 1.0.  Another scenario
-    /// would involve sentences like:
-    /// The cat loves milk, The cat is my friend, The dog is in the yard
-    /// In this scenario with the starting word of "The":
-    /// - cat would have a probability of 0.66 (appears 66% of the time)
-    /// - dog would have a probability of 0.33 (appears 33% of the time)
+    /// Updates probabilities for each word chain
     /// </summary>
     public void UpdateProbabilities()
     {
-        foreach (string word in Words.Keys)
+        foreach (int word in Words.Keys)
         {
-            // Update the probabilities
             foreach (Word s in Words[word])
             {
                 s.Probability = (double)s.Count / _sums[word];
@@ -208,4 +215,3 @@ public class Chain
         }
     }
 }
-
